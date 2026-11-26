@@ -30,16 +30,13 @@ hbbs/hbbr or deploy Linux/macOS clients through GPO, and is not RustDesk Server 
 
 ### Get the released version
 
-On a new Ubuntu/Debian server, install GitHub CLI and authenticate with an
-account that can read this private repository. Authentication is interactive;
-never put a GitHub token in the clone URL or shell command.
+On a new Ubuntu/Debian server, clone the public repository. No GitHub
+account or login is needed.
 
 ```bash
 sudo apt update
-sudo apt install git gh python3 tcpdump openssl
-gh auth login --hostname github.com --git-protocol https
-gh auth setup-git
-gh repo clone brhoom98x/rustdesk-management -- --branch v2.0.4
+sudo apt install git python3 tcpdump openssl
+git clone --branch v2.0.4 https://github.com/brhoom98x/rustdesk-management.git
 cd rustdesk-management
 ```
 
@@ -144,5 +141,5 @@ Browser regression checks use an optional Playwright install:
 `node console/tests/test_dashboard.cjs` and `node console/tests/test_users.cjs`.
 `RDMON_TEST_BROWSER` can select an installed Chromium-compatible browser.
 
-Both original repositories' commit histories are included. Earlier layouts are
-historical component snapshots; use this repository for generic installations.
+The public history starts at release v2.0.4. Earlier development history of
+the console and GPO components is not published.

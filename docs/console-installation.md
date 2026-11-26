@@ -2,31 +2,22 @@
 
 ## Download a fixed release
 
-This repository is private: your GitHub account must have repository access.
-On a new Ubuntu/Debian server:
+This repository is public; no GitHub account is needed. On a new
+Ubuntu/Debian server:
 
 ```bash
 sudo apt update
-sudo apt install git gh python3 tcpdump openssl
-gh auth login --hostname github.com --git-protocol https
-gh auth setup-git
-gh repo clone brhoom98x/rustdesk-management -- --branch v2.0.4
+sudo apt install git python3 tcpdump openssl
+git clone --branch v2.0.4 https://github.com/brhoom98x/rustdesk-management.git
 cd rustdesk-management
 ```
 
-Authenticate as your own user, not through `sudo gh`. A GitHub login password
-is not a Git HTTPS password; the CLI sets up authentication without placing
-a token in your command line. Existing read-only SSH access can also be used
-with `git clone --branch v2.0.4 git@github.com:brhoom98x/rustdesk-management.git`.
-See the official [login](https://cli.github.com/manual/gh_auth_login) and
-[clone](https://cli.github.com/manual/gh_repo_clone) instructions.
-
-Alternatively, after authenticating, download the Linux release package into
-an empty directory:
+Alternatively, download the Linux release package into an empty directory:
 
 ```bash
-gh release download v2.0.4 --repo brhoom98x/rustdesk-management \
-  --pattern 'rustdesk-management-2.0.4.tar.gz' --pattern SHA256SUMS
+base=https://github.com/brhoom98x/rustdesk-management/releases/download/v2.0.4
+curl -fLO "$base/rustdesk-management-2.0.4.tar.gz"
+curl -fLO "$base/SHA256SUMS"
 sha256sum --check SHA256SUMS --ignore-missing
 tar -xzf rustdesk-management-2.0.4.tar.gz
 cd rustdesk-management-2.0.4

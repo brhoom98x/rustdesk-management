@@ -33,9 +33,9 @@
   credentials, private keys, databases and logs. Example domains/addresses are
   documentation values; replace them with the company's actual configuration.
 
-The Git history includes the original private component histories. If distributing
-publicly, review historical configuration as well as the current tree and obtain
-approval for repository visibility changes. This project is initially private.
+This repository is public. Its history starts at release v2.0.4 and does not
+include the earlier private component histories. Before committing, check that
+no real company domain, address, hostname or credential enters the tree.
 
 See the [security review](security-review-2026-10-15.md) for tests, corrections and
 remaining deployment requirements.
