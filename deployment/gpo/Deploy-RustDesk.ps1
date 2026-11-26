@@ -10,7 +10,9 @@
     cannot do. A User Configuration policy would fail on every non-admin desktop.
 
     The script is idempotent - it can run at every boot. It only installs when the
-    wanted version is missing, and it MERGES the server settings into any existing
+    wanted version is missing, or when the RustDesk present was not installed by
+    the domain MSI (an NTLite/custom image or a manual .exe install), which it
+    replaces with the MSI. It MERGES the server settings into any existing
     RustDesk2.toml rather than overwriting it, so a machine's RustDesk ID, trusted
     devices and unlock PIN survive.
 
@@ -62,6 +64,10 @@ param(
     # Do not report the logged-on user to the RustDesk Console (and remove the
     # reporting task if an earlier run created it).
     [switch]$NoSessionReport,
+
+    # Leave a RustDesk the domain MSI did not install (NTLite/custom image or a
+    # manual .exe install) in place instead of replacing it with the MSI.
+    [switch]$KeepForeignInstall,
     [switch]$CheckConfig
 )
 
@@ -115,6 +121,84 @@ function Install-RustDesk {
     if ($p.ExitCode -in 0, 3010) { Write-Log "Install OK (exit $($p.ExitCode))"; return $true }
     Write-Log "Install FAILED (exit $($p.ExitCode)) - see $log" 'ERROR'
     return $false
+}
+
+function Get-RustDeskInstalls {
+    <#
+        Machine-wide uninstall registrations for RustDesk, 64- and 32-bit views.
+        The domain MSI registers a Windows Installer product (WindowsInstaller=1);
+        the .exe installer - and so a copy baked into an NTLite or other custom
+        image - registers a plain "RustDesk" entry with "RustDesk.exe --uninstall".
+    #>
+    foreach ($root in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')) {
+        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+            $p = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
+            if ($p -and [string]$p.DisplayName -like 'RustDesk*') {
+                [pscustomobject]@{
+                    Key = $key.PSChildName; Path = $key.PSPath; Version = [string]$p.DisplayVersion
+                    Msi = ($p.WindowsInstaller -eq 1); Uninstall = [string]$p.UninstallString
+                }
+            }
+        }
+    }
+}
+
+function Test-ForeignRustDesk {
+    <#
+        True when RustDesk is on the machine but the domain MSI does not own it:
+        an .exe-installer or image (NTLite) copy, or a bare unregistered copy.
+        Such a copy defeats the deployment - the MSI cannot upgrade a product it
+        did not install (it fails, and the run aborts before any server config),
+        and a same-or-newer copy is skipped and keeps talking to the public servers.
+
+        Any registered MSI RustDesk product means the domain install owns it, even
+        if RustDesk also wrote its own non-MSI key, so a domain-installed machine is
+        never classed as foreign and never reinstalled in a loop.
+    #>
+    param([object[]]$Installs, [bool]$ExePresent)
+    if (@($Installs | Where-Object { $_.Msi }).Count) { return $false }
+    return ($ExePresent -or @($Installs).Count -gt 0)
+}
+
+function Remove-ForeignRustDesk {
+    <#
+        Removes a non-domain RustDesk so the domain MSI can install cleanly - the
+        same as uninstalling it by hand and rebooting, done by the startup script.
+        Uses RustDesk's own "--uninstall" on the known Program Files binary (never
+        a command line read from the registry), then removes anything it left:
+        the service, the program folder and the non-MSI uninstall entries.
+        The machine's RustDesk config, and so its ID, is not deleted here; the
+        server settings are merged into it after the MSI install.
+    #>
+    param([object[]]$Installs)
+    $programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+    $dir = Join-Path $programFiles 'RustDesk'
+    $exe = Join-Path $dir 'rustdesk.exe'
+
+    Stop-Service -Name 'RustDesk' -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $exe) {
+        Invoke-RustDeskCli -Arguments @('--uninstall') -TimeoutSec 120 | Out-Null
+        # RustDesk finishes its uninstall in a detached helper; give it time.
+        for ($i = 0; $i -lt 30 -and (Test-Path -LiteralPath $exe); $i++) { Start-Sleep -Seconds 2 }
+    }
+    # Tray and session processes keep files open; stop whatever is still running.
+    Get-Process -Name 'rustdesk' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if (Get-Service -Name 'RustDesk' -ErrorAction SilentlyContinue) {
+        Stop-Service -Name 'RustDesk' -Force -ErrorAction SilentlyContinue
+        & sc.exe delete RustDesk | Out-Null
+        Write-Log 'removed the leftover RustDesk service'
+    }
+    if (Test-Path -LiteralPath $dir) {
+        Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    foreach ($i in @($Installs | Where-Object { -not $_.Msi })) {
+        Remove-Item -LiteralPath $i.Path -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $gone = -not (Test-Path -LiteralPath $exe)
+    if ($gone) { Write-Log 'non-domain RustDesk removed' }
+    else       { Write-Log "non-domain RustDesk could not be fully removed ($exe still present)" 'ERROR' }
+    return $gone
 }
 
 function Merge-RustDeskConfig {
@@ -482,6 +566,24 @@ try {
     Write-Log "=== start on $env:COMPUTERNAME ==="
     $have = Get-InstalledVersion
     if ($have) { Write-Log "RustDesk present: $have" } else { Write-Log 'RustDesk not installed' }
+
+    # A copy the domain MSI did not install (an NTLite/custom image, or a manual
+    # .exe install) is replaced, so every domain machine ends up on the MSI with
+    # the server config - no manual uninstall and reboot needed.
+    $installs = @(Get-RustDeskInstalls)
+    if (Test-ForeignRustDesk -Installs $installs -ExePresent ([bool]$have)) {
+        $what = ($installs | ForEach-Object { "$($_.Key) $($_.Version) msi=$($_.Msi)" }) -join '; '
+        if ($KeepForeignInstall) {
+            Write-Log "non-domain RustDesk found ($what) - kept (-KeepForeignInstall)" 'WARN'
+        } else {
+            Write-Log "non-domain RustDesk found ($(if ($what) { $what } else { 'unregistered copy' })) - replacing it with the domain MSI"
+            if (-not (Remove-ForeignRustDesk -Installs $installs)) {
+                Write-Log 'Aborting: the existing RustDesk could not be removed; will retry next boot' 'ERROR'
+                exit 1
+            }
+            $have = $null          # forces the MSI install below
+        }
+    }
 
     # WantVersion is a MINIMUM, not an exact pin. RustDesk clients self-update,
     # and the version carries build metadata like "1.5.0+68", which [version]

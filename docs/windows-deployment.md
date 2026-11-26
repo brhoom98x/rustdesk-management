@@ -74,6 +74,25 @@ The reporter runs at startup/logon and every five minutes, tolerates process rac
 retries writes, and publishes complete files. See `reporter.log` under
 `%ProgramData%\RustDeskDeploy`. Let machines reboot normally for startup deployment.
 
+### Machines that already have RustDesk (NTLite or custom images)
+
+A RustDesk baked into a deployment image (NTLite, MDT, a golden image) or
+installed by hand with the `.exe` installer is not owned by the domain MSI. Left
+alone it defeats the deployment: an older copy makes the MSI install fail (and the
+run abort before any server settings are written), and a same-or-newer copy is
+skipped and keeps using the public servers.
+
+The startup script therefore replaces any RustDesk without a registered Windows
+Installer product: it runs that copy's own `--uninstall`, removes anything left
+(service, `Program Files\RustDesk`, the non-MSI uninstall entry), then installs the
+domain MSI and merges the server settings - what used to be a manual uninstall and
+reboot. The machine's RustDesk configuration, and so its ID, is kept. Machines
+installed by the domain MSI are never reinstalled. The deploy log records it as
+`non-domain RustDesk found (...) - replacing it with the domain MSI`.
+
+To keep such a copy instead, pass `-KeepForeignInstall`. Better still, remove
+RustDesk from the image and let the domain deployment install it.
+
 ## 4. Repair reporting without reinstalling
 
 On the DC, adjust the domain and machine names:

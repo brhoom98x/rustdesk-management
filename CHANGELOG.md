@@ -1,5 +1,23 @@
 # Release notes
 
+## Unreleased
+
+### Fixed
+
+- Machines whose image already contained RustDesk (NTLite or another custom
+  image, or a manual `.exe` install) now get the domain MSI and the server
+  settings automatically. The startup script detects a RustDesk with no Windows
+  Installer product, removes it with its own `--uninstall`, and installs the MSI;
+  previously an older copy made the MSI fail and a newer one was skipped, leaving
+  the machine on the public servers until RustDesk was removed by hand.
+  The machine's RustDesk ID is kept, MSI-installed machines are never
+  reinstalled, and `-KeepForeignInstall` opts out.
+
+### Upgrade notes
+
+Stage the updated `Deploy-RustDesk.ps1` in NETLOGON. Affected machines are fixed
+at their next boot. Run `Test-RustDeskForeignInstall.ps1` with the other checks.
+
 ## 2.0.4 — 2026-11-04
 
 Connect launcher and dashboard controls fixes.
