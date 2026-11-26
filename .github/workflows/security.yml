@@ -1,0 +1,59 @@
+name: Security checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install security tools in the runner
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-security.txt
+      - name: Regression tests including TLS
+        env:
+          RDMON_CONFIG: config/examples/console.ini.example
+        run: |
+          command -v openssl
+          python -m unittest discover -s console/tests -v
+          python console/install.py --config config/examples/console.ini.example --check
+      - name: Static analysis (medium and high severity)
+        run: python -m bandit -r console/app console/install.py console/bin/rdmon-passwd -ll
+      - name: Audit the development tool dependencies
+        run: python -m pip_audit
+      - name: Scan complete Git history for secrets
+        env:
+          GITLEAKS_VERSION: '8.30.1'
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}" --output "$RUNNER_TEMP/$archive"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          "$RUNNER_TEMP/gitleaks/gitleaks" git . --redact --no-banner --log-opts=--all
+  windows-deployment:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Windows PowerShell 5.1 security/configuration/reporting checks
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\deployment\gpo\Test-DeploymentSettings.ps1
+          & .\deployment\gpo\Test-DeploymentSecurity.ps1
+          & .\deployment\gpo\Test-RustDeskReporting.ps1
+          & .\deployment\gpo\Test-RustDeskIdentity.ps1
+          & .\deployment\gpo\Test-RustDeskAutoUpdate.ps1

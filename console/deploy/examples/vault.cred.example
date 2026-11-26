@@ -1,0 +1,5 @@
+# /etc/rdconsole/vault.cred  (root:rdmon, mode 640; directory 750 root:rdmon)
+# Read-only account for the password vault share. The real file is never committed.
+username=svc-rdconsole
+password=<set on the server, never in git>
+domain=<NETBIOS-DOMAIN>

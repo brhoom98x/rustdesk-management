@@ -1,0 +1,5 @@
+# Optional systemd-resolved routing for your actual AD domain.
+# Edit these documentation-only values; copy to a resolved drop-in if needed.
+[Resolve]
+DNS=192.0.2.53
+Domains=~corp.example.com

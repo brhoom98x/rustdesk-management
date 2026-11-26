@@ -1,0 +1,30 @@
+# Copy to /etc/rdmon/console.ini. Never put credentials or private keys here.
+[console]
+bind_host = 0.0.0.0
+http_port = 8080
+https_port = 8443
+public_url = https://rustdesk.corp.example.com:8443
+state_file = /opt/rdmon/state.json
+static_dir = /opt/rdmon/static
+cert_file = /etc/rdmon/tls/cert.pem
+key_file = /etc/rdmon/tls/key.pem
+users_db = /var/lib/rdmon/users.sqlite3
+audit_log = /var/log/rdmon/reveal-audit.log
+online_window = 60
+
+[collector]
+database = /opt/rustdesk/db_v2.sqlite3
+interface = any
+heartbeat_port = 21116
+aliases_file = /etc/rdmon/aliases.conf
+
+[vault]
+# Monitoring works without AD. Enable only after preparing the encrypted vault.
+enabled = false
+mount_dir = /mnt/rustdesk-vault
+share = //dc.corp.example.com/RustDeskVault$
+credentials_file = /etc/rdconsole/vault.cred
+owner_domain = EXAMPLE
+owner_timeout = 8
+collector_cache_dir = /var/cache/rdmon-collector
+web_cache_dir = /var/cache/rdmon

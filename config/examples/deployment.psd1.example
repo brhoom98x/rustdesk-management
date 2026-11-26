@@ -1,0 +1,25 @@
+# Public company settings, readable by domain computers. NO PASSWORDS here.
+# Copy to deployment/gpo/settings.psd1, then stage with the .ps1 files.
+@{
+    Domain = 'corp.example.com'
+    OwnerDomain = 'EXAMPLE' # Actual AD NetBIOS name; not inferred from DNS.
+    IdServer = 'rustdesk.corp.example.com'
+    RelayServer = 'rustdesk.corp.example.com'
+    PublicKey = 'REPLACE_WITH_RUSTDESK_SERVER_PUBLIC_KEY'
+    ApiServer = '' # The monitoring console is not a RustDesk API server.
+    WantVersion = '1.5.0'
+    # Recommended: set the SHA-256 of the independently verified MSI you stage.
+    MsiSha256 = ''
+    # StageDir/MsiPath/VaultPointer derive from Domain and WantVersion.
+    # Override them here for a different share or installer filename.
+    VaultPath = '' # Read vault-path.txt after Initialize-RustDeskVault.ps1.
+    Path = 'C:\RustDeskVault'
+    ShareName = 'RustDeskVault$'
+    ReaderAccounts = @('svc-rdconsole')
+    PasswordLength = 16
+    # Optional one-time recovery for PCs renamed before local identity tracking.
+    # New name -> old name. The old file must belong to the CURRENT computer
+    # account and match its RustDesk ID; a mapping never bypasses either check.
+    PreviousComputerNames = @{}
+    # Example: PreviousComputerNames = @{ 'NEW-PC' = 'OLD-PC' }
+}

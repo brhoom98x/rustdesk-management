@@ -1,0 +1,2 @@
+# Read-only, SMB3-encrypted mount of the password vault (one line in /etc/fstab):
+//<dc-fqdn>/RustDeskVault$ /mnt/rustdesk-vault cifs credentials=/etc/rdconsole/vault.cred,ro,vers=3.1.1,seal,sec=ntlmssp,uid=<rdmon uid>,gid=<rdmon gid>,file_mode=0400,dir_mode=0500,_netdev,nofail,noserverino 0 0

@@ -1,0 +1,17 @@
+[Unit]
+Description=rdmon collector - RustDesk peer heartbeat sniffer
+After=network-online.target rustdesksignal.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Root is required: tcpdump needs CAP_NET_RAW, and the hbbs database is root-owned.
+# This is the only privileged half; the web UI runs unprivileged.
+ExecStart=/usr/bin/python3 /opt/rdmon/collector.py
+Restart=always
+RestartSec=5
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

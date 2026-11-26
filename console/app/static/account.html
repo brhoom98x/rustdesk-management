@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>My account · RustDesk Console</title>
+<script>(function(){let t=null;try{t=localStorage.getItem('rdconsole.theme')}catch(e){}document.documentElement.dataset.theme=t==='light'||t==='dark'?t:matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'})();</script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/rdmon.css"></head><body>
+<header class="bar"><div class="brand">RustDesk Console <span class="chip acc">My account</span></div><a class="ctl" href="/">Dashboard</a></header>
+<main class="wrap account-wrap"><h1 id="identity">My account</h1><p class="meta" id="role"></p>
+<div class="account-message" id="message" role="status" hidden></div>
+<section class="account-card"><h2>Change password</h2><form class="account-form" id="password-form">
+<label>Current password<input name="current_password" type="password" required autocomplete="current-password"></label>
+<label>New password<input name="password" type="password" required minlength="12" maxlength="1024" autocomplete="new-password"></label>
+<label>Confirm new password<input name="confirm" type="password" required minlength="12" autocomplete="new-password"></label>
+<button class="ctl" type="submit">Change password</button></form><p class="meta">All your existing sessions will end after the password changes.</p></section></main>
+<script>
+let csrf=null;
+fetch('/api/me',{cache:'no-store'}).then(async response=>{if(response.status===401){location.href='/login';return}if(!response.ok)throw Error('Unable to load account');const me=await response.json();csrf=me.csrf;document.getElementById('identity').textContent=me.user.username;document.getElementById('role').textContent='Role: '+me.user.role}).catch(error=>show(error.message));
+function show(text){const box=document.getElementById('message');box.textContent=text;box.hidden=false;box.classList.add('error')}
+document.getElementById('password-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(form.elements.password.value!==form.elements.confirm.value){show('New passwords do not match.');return}const button=form.querySelector('button');button.disabled=true;try{const response=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({current_password:form.elements.current_password.value,password:form.elements.password.value})});const data=await response.json();if(response.status===401){location.href='/login';return}if(!response.ok)throw Error(data.error||'Password change failed');form.reset();location.href='/login?changed=1'}catch(error){form.reset();show(error.message)}finally{button.disabled=false}});
+</script></body></html>

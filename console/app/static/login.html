@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+// Theme is applied before first paint, so a light-mode user never sees a dark
+// flash: the saved choice if there is one, otherwise the OS setting.
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("rdconsole.theme"); } catch (e) {}
+  if (t !== "light" && t !== "dark")
+    t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", t);
+})();
+</script>
+<meta name="color-scheme" content="dark light">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · RustDesk Console</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/favicon.ico" sizes="32x32">
+<link rel="stylesheet" href="/rdmon.css">
+</head>
+<body class="auth">
+  <form method="POST" action="/login" autocomplete="on">
+    <span class="logo" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11.5" fill="none" stroke="#818CF8" stroke-width="2.2" opacity=".35"/><circle cx="16" cy="16" r="7" fill="none" stroke="#818CF8" stroke-width="2.4" opacity=".75"/><circle cx="16" cy="16" r="3.2" fill="#A5B4FC"/></svg></span>
+    <h1>RustDesk <span>Console</span></h1>
+    <div class="sub">remote access monitor</div>
+    <div class="alert" id="err"></div>
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username"
+           required autofocus spellcheck="false">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password"
+           autocomplete="current-password" required>
+    <button class="btn" type="submit">Sign in</button>
+    <div class="tail">session expires after 12h</div>
+  </form>
+<script>
+  const e = new URLSearchParams(location.search).get("e");
+  const box = document.getElementById("err");
+  const msg = {
+    "1": "Invalid username or password.",
+    "2": "Too many failed attempts. Wait a few minutes and try again."
+  }[e];
+  if (msg) { box.textContent = msg; box.classList.add("show"); }
+  if (new URLSearchParams(location.search).get("changed") === "1") { box.textContent = "Password changed. Sign in with your new password."; box.classList.add("show"); }
+</script>
+</body>
+</html>

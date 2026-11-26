@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Users · RustDesk Console</title>
+<script>(function(){let t=null;try{t=localStorage.getItem('rdconsole.theme')}catch(e){}document.documentElement.dataset.theme=t==='light'||t==='dark'?t:matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'})();</script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/rdmon.css"></head>
+<body><header class="bar"><div class="brand">RustDesk Console <span class="chip acc">Users</span></div><div class="right"><span class="meta" id="identity"></span><a class="ctl" href="/account">My account</a><a class="ctl" href="/">Dashboard</a></div></header>
+<main class="wrap account-wrap">
+<h1>User management</h1><p class="meta">Admin: manage users, reveal passwords, view audit. Operator: monitor and reveal. Viewer: monitor only.</p>
+<div class="account-message" id="message" role="status" hidden></div>
+<section class="account-card"><h2>Create account</h2><form id="create-form" class="account-form">
+<label>Username<input name="username" required maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._@-]*" autocomplete="off" spellcheck="false"></label>
+<label>Password<input name="password" type="password" required minlength="12" maxlength="1024" autocomplete="new-password"></label>
+<label>Role<select name="role"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label>
+<button class="ctl" type="submit">Create user</button></form><p class="meta">Passwords require at least 12 characters.</p></section>
+<section class="account-card"><h2>Accounts</h2><div class="account-table"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody id="users"></tbody></table></div></section>
+<section class="account-card" id="edit-card" hidden><h2 id="edit-title">Edit account</h2><form id="edit-form" class="account-form">
+<input name="username" type="hidden"><label>Role<select name="role"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label>
+<label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+<label>Reset password<input name="password" type="password" minlength="12" maxlength="1024" autocomplete="new-password" placeholder="Leave blank to keep current password"></label>
+<button class="ctl" type="submit">Save changes</button><button class="ctl" type="button" id="cancel">Cancel</button></form><p class="meta">Saved changes revoke this user's sessions. The last active Admin cannot be disabled or demoted.</p></section>
+</main>
+<script>
+let csrf=null, users=[];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const message=(text,error=false)=>{const box=document.getElementById('message');box.textContent=text;box.hidden=false;box.classList.toggle('error',error)};
+async function api(path,body){const response=await fetch(path,{cache:'no-store',...(body?{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)}:{})});if(response.status===401){location.href='/login';throw Error('Sign in again.')}const data=await response.json();if(!response.ok)throw Error(data.error||'Request failed');return data}
+async function load(){const me=await api('/api/me');csrf=me.csrf;document.getElementById('identity').textContent=me.user.username+' · '+me.user.role;users=(await api('/api/users')).users;document.getElementById('users').innerHTML=users.map(u=>'<tr><td>'+esc(u.username)+'</td><td>'+esc(u.role)+'</td><td>'+ (u.enabled?'Enabled':'Disabled')+'</td><td>'+ (u.last_login?esc(new Date(u.last_login*1000).toLocaleString()):'Never')+'</td><td><button class="ctl ctl-sm" data-edit="'+esc(u.username)+'">Edit</button></td></tr>').join('')}
+document.getElementById('create-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget, button=form.querySelector('button');button.disabled=true;try{await api('/api/users',{action:'create',username:form.elements.username.value,password:form.elements.password.value,role:form.elements.role.value});form.reset();message('Account created.');await load()}catch(error){form.elements.password.value='';message(error.message,true)}finally{button.disabled=false}});
+document.getElementById('users').addEventListener('click',event=>{const button=event.target.closest('[data-edit]');if(!button)return;const user=users.find(u=>u.username===button.dataset.edit), form=document.getElementById('edit-form');form.elements.username.value=user.username;form.elements.role.value=user.role;form.elements.enabled.value=String(!!user.enabled);form.elements.password.value='';document.getElementById('edit-title').textContent='Edit '+user.username;document.getElementById('edit-card').hidden=false;document.getElementById('edit-card').scrollIntoView({block:'nearest'});form.elements.role.focus()});
+document.getElementById('cancel').addEventListener('click',()=>{document.getElementById('edit-form').reset();document.getElementById('edit-card').hidden=true});
+document.getElementById('edit-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget, button=form.querySelector('button[type=submit]');button.disabled=true;const body={action:'update',username:form.elements.username.value,role:form.elements.role.value,enabled:form.elements.enabled.value==='true'};if(form.elements.password.value)body.password=form.elements.password.value;try{await api('/api/users',body);form.reset();document.getElementById('edit-card').hidden=true;message('Account updated; previous sessions revoked.');await load()}catch(error){form.elements.password.value='';message(error.message,true)}finally{button.disabled=false}});
+load().catch(error=>message(error.message,true));
+</script></body></html>

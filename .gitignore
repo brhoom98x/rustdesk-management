@@ -1,0 +1,78 @@
+# ---- secrets: these exist on the server and must never be committed ----
+# console login hash, vault service-account credential, TLS material
+auth.env
+*.cred
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+# environment files of any kind (the deploy/examples/*.example files are fine)
+.env*
+!.env.example
+# local overrides that might carry hostnames or credentials
+*.local
+*.secret
+secrets/
+
+# ---- runtime data ----
+state.json
+*.json
+*.session
+*.session.tmp
+*.msi
+*.exe
+settings.psd1
+console.ini
+config/company/
+deployment/gpo/generated/
+vault-path.txt
+users.sqlite3*
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.log
+/var/
+
+# ---- deploy backups left on the server ----
+*.bak
+*.bak-*
+*.orig
+*.rej
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / build artifacts ----
+node_modules/
+dist/
+build/
+*.egg-info/
+coverage/
+
+# ---- editors / OS / temp ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+tmp/

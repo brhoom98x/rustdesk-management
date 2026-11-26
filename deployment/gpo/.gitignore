@@ -1,0 +1,32 @@
+# ---- vault records: <COMPUTERNAME>.json holds a PLAINTEXT password ----
+# Never commit one, even a test copy pulled down with Get-RustDeskPassword.ps1.
+*.json
+vault-path.txt
+RustDeskVault/
+
+# ---- installers and logs ----
+*.msi
+*.exe
+*.log
+deploy.log
+
+# ---- secrets / credentials of any kind ----
+.env
+.env.*
+*.cred
+*.pfx
+*.p12
+*.pem
+*.key
+*.secret
+
+# ---- editors / OS / temp ----
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp
+*.bak

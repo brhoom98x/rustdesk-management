@@ -1,0 +1,23 @@
+# RustDesk Console - manual machine names and OS overrides
+#
+# Format:  <rustdesk id> = <name>              a machine name
+#          os:<rustdesk id> = <os string>      an OS label
+#
+# Names are normally discovered automatically: the collector asks each peer's IP
+# for its NetBIOS workstation name, falling back to a reverse-DNS lookup.
+# That fails in one case you cannot fix on the network - a peer whose traffic
+# arrives NAT'd shows up as the gateway address, which is not the machine, so
+# the lookup either times out or returns the router. Name those peers here.
+#
+# An entry below overrides whatever was discovered. Edits apply within ~30s;
+# no restart needed. Keyed on the RustDesk ID because that is stable, while the
+# peer's IP is not.
+#
+# OS is normally reported by the machine itself (deployed workstations) or
+# guessed from its SMB build. The guess cannot tell 24H2 / 25H2 / 26H2 apart -
+# they share build 26100 over the wire - so an unmanaged machine on a newer
+# release may read low. Override it here; an os: line wins over both.
+#
+# Example:
+# 100000001 = WORKSTATION-01
+# os:100000001 = Windows 11 26H2

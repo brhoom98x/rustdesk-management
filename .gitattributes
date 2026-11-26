@@ -1,0 +1,8 @@
+# Everything here is deployed to Linux. Force LF so a Windows checkout cannot
+# turn a script or systemd unit into CRLF, which breaks it on the server.
+* text=auto eol=lf
+bin/rdmon-passwd text eol=lf
+*.ps1 text eol=crlf
+*.psd1 text eol=crlf
+*.ico binary
+*.png binary

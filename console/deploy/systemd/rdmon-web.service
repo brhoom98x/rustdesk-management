@@ -1,0 +1,26 @@
+[Unit]
+Description=rdmon web - RustDesk connected-clients dashboard
+After=network-online.target rdmon-collector.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/rdmon/server.py
+Restart=always
+RestartSec=5
+User=rdmon
+Group=rdmon
+# Persistent console-account hashes. StateDirectory remains writable inside
+# ProtectSystem=strict; workstation passwords are never stored here.
+StateDirectory=rdmon
+StateDirectoryMode=0700
+# Monitoring state and application code remain read-only.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

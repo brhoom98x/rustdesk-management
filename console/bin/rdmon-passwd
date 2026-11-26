@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""
+rdmon-passwd - create or recover a console account from the server terminal.
+
+Writes only password hashes to /var/lib/rdmon/users.sqlite3. The plaintext is never
+stored, never logged, and never placed on a command line, so it cannot surface
+in `ps aux`, shell history or `systemctl status`.
+
+  rdmon-passwd                 prompt for a new password (hidden, typed twice)
+  rdmon-passwd --random        generate a strong one and print it once
+  rdmon-passwd --user alice    create/reset this account
+  rdmon-passwd --user alice --role viewer  create/reset a Viewer
+  rdmon-passwd --no-restart    write the file but leave the service alone
+"""
+import argparse, getpass, grp, hashlib, os, pwd, secrets, string, subprocess, sys, tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+sys.path.insert(0, "/opt/rdmon")
+import accounts
+
+ENV_PATH = "/etc/rdmon/auth.env"
+SERVICE  = "rdmon-web"
+ITERS    = 600_000
+MIN_LEN  = 12
+
+
+def current_user(default="admin"):
+    try:
+        with open(ENV_PATH) as fh:
+            for line in fh:
+                if line.startswith("RDMON_USER="):
+                    return line.split("=", 1)[1].strip() or default
+    except FileNotFoundError:
+        pass
+    return default
+
+
+def write_env(user, password):
+    salt = os.urandom(16)
+    dig = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, ITERS)
+    body = (f"RDMON_USER={user}\n"
+            f"RDMON_PASS_HASH=pbkdf2_sha256${ITERS}${salt.hex()}${dig.hex()}\n")
+
+    try:
+        gid = grp.getgrnam("rdmon").gr_gid       # readable by the service account
+        mode = 0o640
+    except KeyError:
+        gid, mode = 0, 0o600                     # no service account yet: lock it down
+
+    os.makedirs(os.path.dirname(ENV_PATH), mode=0o755, exist_ok=True)
+    # Write-then-rename so a reader never sees a half-written credential, and so
+    # a crash cannot leave the file empty (which would fail the service closed).
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(ENV_PATH), prefix=".auth.")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(body)
+        os.chown(tmp, 0, gid)
+        os.chmod(tmp, mode)
+        os.replace(tmp, ENV_PATH)
+    except Exception:
+        os.unlink(tmp)
+        raise
+    return mode, gid
+
+
+def main():
+    if os.geteuid() != 0:
+        sys.exit("rdmon-passwd: must run as root (try: sudo rdmon-passwd)")
+
+    ap = argparse.ArgumentParser(
+        prog="rdmon-passwd",
+        description="Set the rdmon dashboard login credential.")
+    ap.add_argument("--user", help="username to set (default: keep current)")
+    ap.add_argument("--role", choices=sorted(accounts.ROLES), help="role to assign (default: keep existing; admin for new accounts)")
+    ap.add_argument("--random", action="store_true",
+                    help="generate a strong password and print it once")
+    ap.add_argument("--length", type=int, default=20,
+                    help="length for --random (default 20)")
+    ap.add_argument("--no-restart", action="store_true",
+                    help="do not restart %s afterwards" % SERVICE)
+    args = ap.parse_args()
+
+    user = args.user or current_user()
+
+    if args.random:
+        if args.length < MIN_LEN:
+            sys.exit(f"rdmon-passwd: --length must be at least {MIN_LEN}")
+        alphabet = string.ascii_letters + string.digits
+        password = "".join(secrets.choice(alphabet) for _ in range(args.length))
+    else:
+        try:
+            password = getpass.getpass(f"New password for '{user}': ")
+            if len(password) < MIN_LEN:
+                sys.exit(f"rdmon-passwd: too short (minimum {MIN_LEN} characters)")
+            if password != getpass.getpass("Repeat password: "):
+                sys.exit("rdmon-passwd: passwords do not match")
+        except (EOFError, KeyboardInterrupt):
+            sys.exit("\nrdmon-passwd: aborted, nothing changed")
+
+    if not accounts.USERNAME.fullmatch(user):
+        sys.exit("rdmon-passwd: invalid username")
+    legacy_user, legacy_hash = "", ""
+    try:
+        with open(ENV_PATH) as fh:
+            values = dict(line.strip().split("=", 1) for line in fh if "=" in line)
+        legacy_user, legacy_hash = values.get("RDMON_USER", ""), values.get("RDMON_PASS_HASH", "")
+    except FileNotFoundError:
+        pass
+    store = accounts.Store()
+    store.initialize(legacy_user, legacy_hash)
+    existing = store.get(user)
+    try:
+        if existing:
+            store.update(user, password=password, role=args.role, enabled=True)
+        else:
+            store.create(user, password, args.role or "admin")
+    except ValueError as exc:
+        sys.exit(f"rdmon-passwd: {exc}")
+    gid = grp.getgrnam("rdmon").gr_gid
+    uid = pwd.getpwnam("rdmon").pw_uid
+    os.chown(os.path.dirname(store.path), uid, gid)
+    os.chown(store.path, uid, gid)
+    # Keep the legacy bootstrap only for the original account, so creating an
+    # operator/viewer can never replace the legacy administrator credential.
+    if not legacy_user or user.lower() == legacy_user.lower():
+        mode, gid = write_env(user, password)
+    else:
+        mode = 0o640
+    group = grp.getgrgid(gid).gr_name if gid else "root"
+    print(f"Updated console account '{user}' in {store.path} - hash only, no plaintext.")
+
+    if args.random:
+        print(f"\n  Username: {user}\n  Password: {password}\n")
+        print("Save it now; it is not recoverable from the server.")
+
+    if args.no_restart:
+        print(f"Not restarting {SERVICE}; the account change applies immediately and revokes its existing sessions.")
+        return
+    try:
+        subprocess.run(["systemctl", "restart", SERVICE], check=True)
+        # Restarting clears in-memory sessions, so every existing login is
+        # invalidated - which is what you want after rotating a credential.
+        print(f"Restarted {SERVICE}; existing sessions signed out.")
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        sys.exit(f"rdmon-passwd: credential written but restart failed: {exc}")
+
+
+if __name__ == "__main__":
+    main()
