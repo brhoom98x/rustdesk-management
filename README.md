@@ -29,7 +29,8 @@ hbbs/hbbr or deploy Linux/macOS clients through GPO, and is not RustDesk Server 
 ## Quick start
 
 New installation? [Step-by-step](docs/step-by-step.md) walks through the whole
-setup in order: Linux server, RustDesk OSS server, console, GPO rollout and vault.
+setup in order: Linux server, RustDesk OSS server, console, GPO rollout, vault
+and automatic client updates.
 
 ### Get the released version
 

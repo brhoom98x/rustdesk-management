@@ -2,7 +2,7 @@
 
 This guide walks through a complete installation in order: the Linux server,
 the RustDesk OSS server, the console, and the Windows Active Directory rollout
-with the encrypted password vault. The other documents explain each part in
+with the encrypted password vault, and automatic client updates. The other documents explain each part in
 depth; this one gives the exact commands in the order they are run.
 
 Every value below is an example. Replace them with your own:
@@ -306,12 +306,58 @@ its password. `--self-signed` is not needed again. Reload the console: the PC no
 shows its machine name, logged-on user and reporting state, and an Admin can
 reveal its password (recorded under **Audit**).
 
-## 10. Roll out and maintain
+## 10. Automatic RustDesk client updates (optional)
+
+A daily task on the DC can stage each new stable RustDesk MSI for you. Run the
+setup once, in elevated Windows PowerShell 5.1, from the extracted release
+package used in step 5. It must not run from its own installation folder.
+
+```powershell
+Set-Location 'C:\RustDeskSetup\rustdesk-management-2.0.4\deployment\gpo'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Register-RustDeskAutoUpdate.ps1
+```
+
+The setup finds `NETLOGON\RustDesk\settings.psd1` itself, installs the updater
+into `%ProgramData%\RustDeskDeploy\AutoUpdate` (SYSTEM and Administrators
+only), registers the task `\RustDesk\Update deployment` to run as SYSTEM daily
+at 04:00 DC local time, and starts a first check. No password or token is
+stored. Use `-At '02:30'` for another time. The DC needs outbound HTTPS to GitHub.
+
+After about a minute, check the first run:
+
+```powershell
+Get-ScheduledTaskInfo -TaskPath '\RustDesk\' -TaskName 'Update deployment' |
+    Select-Object LastRunTime, LastTaskResult, NextRunTime
+Get-Content "$env:ProgramData\RustDeskDeploy\AutoUpdate\updater.log" -Tail 10
+```
+
+`LastTaskResult` must be `0` (`267009` means it is still running). The log shows
+`already current; version=...` when the newest stable MSI is already deployed,
+or `staged; version=...` when it staged a newer one.
+
+When RustDesk publishes a new stable release, the task:
+
+1. Downloads the Windows x64 MSI and verifies its size, GitHub's SHA-256 digest
+   and the approved RustDesk publisher signature. Any failure changes nothing.
+2. Copies the MSI to NETLOGON, then updates only `WantVersion`, `MsiPath` and
+   `MsiSha256` in `settings.psd1`. A missing `MsiPath` line is added.
+3. Keeps older MSIs and a settings backup, and never downgrades.
+
+PCs upgrade at their next normal restart, with no forced reboot. Their RustDesk
+ID and unattended password are kept. To pause updates:
+
+```powershell
+Disable-ScheduledTask -TaskPath '\RustDesk\' -TaskName 'Update deployment'
+```
+
+Details: [automatic stable MSI updates](windows-deployment.md#6-automatic-stable-rustdesk-msi-updates).
+
+## 11. Roll out and maintain
 
 - **More PCs:** move their computer accounts into the linked OU. Each one
   installs at its next normal restart.
-- **Client updates:** set up the [automatic stable MSI updater](windows-deployment.md#6-automatic-stable-rustdesk-msi-updates)
-  on the DC, or stage a new MSI and update `WantVersion`, `MsiPath` and `MsiSha256` yourself.
+- **Client updates:** handled by step 10. Without it, stage a new MSI and update
+  `WantVersion`, `MsiPath` and `MsiSha256` yourself.
 - **Server updates:** install newer `rustdesk-server` `.deb` packages the same way
   as in step 2; the database and keys in `/var/lib/rustdesk-server/` are kept.
 - **Moving the server:** install hbbs/hbbr on the new host and restore
@@ -331,4 +377,5 @@ reveal its password (recorded under **Audit**).
 | PC installed but never appears in the console | The PC's network cannot reach 21115-21117/tcp and 21116/udp on the server (step 4) |
 | Console shows `unknown` machine and `vault disabled` | The console vault is not enabled yet (step 9) |
 | `smbclient` returns `NT_STATUS_LOGON_FAILURE` | Wrong reader password, or the NetBIOS domain is wrong: check `Get-ADDomain` |
+| Updater `LastTaskResult` is not `0` | Read `updater.log` under `%ProgramData%\RustDeskDeploy\AutoUpdate`; a failed download or verification keeps the working settings and retries the next day |
 | Browser warns about the certificate | Expected with `--self-signed`; trust it on admin PCs or install a company certificate |
