@@ -21,7 +21,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\New-RustDeskDeployment
 
 The generator asks for domain, actual NetBIOS name, server and server **public**
 key. Alternatively edit a copy of `config/examples/deployment.psd1.example` as
-`settings.psd1`. No password or private key belongs in that file.
+`settings.psd1`. No password or private key belongs in that file. The generator
+does not write `MsiSha256`; add it to the generated file yourself.
 
 Validate without installing or restarting anything:
 
@@ -33,7 +34,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Set-RustDeskUserConfig
 Stage **all `.ps1` files**, `settings.psd1` and the selected MSI together in the
 configured NETLOGON directory. Shared `DeploymentSettings.ps1` is required.
 The scripts need computer/user read access; write access belongs to deployment
-administrators. Stage configuration without private passwords.
+administrators. Stage configuration without private passwords. Stage before
+creating the vault: `Initialize-RustDeskVault.ps1` writes `vault-path.txt` into
+the stage directory. [Step-by-step](step-by-step.md) has the download, hash and
+copy commands.
 
 ## 2. Prepare the encrypted vault (if using passwords/reporting)
 
@@ -56,12 +60,25 @@ storage/reporting is unavailable; no unknown unattended password is silently set
 
 ## 3. Link policies to the actual workstation OU
 
-Create a deployment GPO using GPMC, link it to your workstation OU, and set:
+Create a deployment GPO using GPMC, link it to the OU that holds the workstation
+**computer** accounts (not a parent OU that also holds servers), and set:
 
 - Computer startup: the staged `Deploy-RustDesk.ps1`, running as SYSTEM.
 - User logon: the staged `Set-RustDeskUserConfig.ps1` for existing profiles.
 - For a conventional startup script launch, use `powershell.exe` and
   `-NoProfile -ExecutionPolicy Bypass -File "\\<domain>\NETLOGON\RustDesk\Deploy-RustDesk.ps1"`.
+- **Loopback processing in Merge mode** (Computer Configuration → Administrative
+  Templates → System → Group Policy → Configure user Group Policy loopback
+  processing mode). User accounts normally live in a different OU from the
+  computers; without loopback, the logon script in a GPO linked to the computer
+  OU never runs.
+- **Always wait for the network at computer startup and logon** (Computer
+  Configuration → Administrative Templates → System → Logon). By default Windows
+  starts before the network is ready and skips startup scripts. A PC that has
+  not yet received this setting may need two restarts the first time.
+
+Both settings can also be set with `Set-GPRegistryValue`; see
+[step-by-step](step-by-step.md#7-create-and-link-the-gpo).
 
 The process execution-policy override cannot supersede a domain-enforced signing
 policy. If signing is required, sign the scripts with the company's trusted
@@ -73,6 +90,11 @@ later runs preserve them unless `-ForceNewPassword` is explicitly requested.
 The reporter runs at startup/logon and every five minutes, tolerates process races,
 retries writes, and publishes complete files. See `reporter.log` under
 `%ProgramData%\RustDeskDeploy`. Let machines reboot normally for startup deployment.
+Use Restart rather than Shut down: with Fast Startup a shutdown is not a full
+boot, and startup scripts do not run.
+
+Managed PCs must reach the RustDesk server on 21115-21117/tcp and 21116/udp.
+Open that path on any router or firewall between client networks and the server.
 
 ### Machines that already have RustDesk (NTLite or custom images)
 

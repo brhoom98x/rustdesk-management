@@ -28,6 +28,9 @@ hbbs/hbbr or deploy Linux/macOS clients through GPO, and is not RustDesk Server 
 
 ## Quick start
 
+New installation? [Step-by-step](docs/step-by-step.md) walks through the whole
+setup in order: Linux server, RustDesk OSS server, console, GPO rollout and vault.
+
 ### Get the released version
 
 On a new Ubuntu/Debian server, clone the public repository. No GitHub
@@ -116,6 +119,7 @@ does not grant a RustDesk session or embed a password.
 
 ## Documentation
 
+- [Step-by-step installation](docs/step-by-step.md)
 - [Console installation](docs/console-installation.md)
 - [Windows deployment](docs/windows-deployment.md)
 - [Automatic Windows updates](docs/windows-deployment.md#6-automatic-stable-rustdesk-msi-updates)

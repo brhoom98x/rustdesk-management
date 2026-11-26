@@ -31,9 +31,14 @@ source distribution, not an OS package, and does not install hbbs/hbbr.
 
 - Ubuntu/Debian Linux with Python 3.10+, systemd, tcpdump and OpenSSL.
 - An existing RustDesk OSS hbbs database and client heartbeat traffic visible
-  to this server. Configure database path, interface and heartbeat port.
-- Optional vault: `cifs-utils` and `smbclient`, DNS connectivity to the AD vault
-  server, and a dedicated reader with read-only NTFS rights including ACL reads.
+  to this server. Configure database path, interface and heartbeat port. The
+  official `rustdesk-server` `.deb` packages keep the database at
+  `/var/lib/rustdesk-server/db_v2.sqlite3`, not the example's `/opt/rustdesk`
+  path. [Step-by-step](step-by-step.md#2-install-the-rustdesk-oss-server-hbbs-and-hbbr)
+  covers installing them.
+- Optional vault: `cifs-utils` and `smbclient`, network connectivity to the AD
+  vault server (by DNS name, or by IP address in `share`), and a dedicated
+  reader with read-only NTFS rights including ACL reads.
 
 ```bash
 sudo apt install python3 tcpdump openssl
@@ -52,7 +57,11 @@ sudo python3 console/install.py --config "$HOME/rustdesk-console.ini" \
   --self-signed --hostname rustdesk.corp.example.com
 ```
 
-Replace the certificate hostname with your actual server DNS name or IP.
+Replace the certificate hostname with your actual server DNS name or IP; an IP
+address becomes an `IP:` subject alternative name. Run the installer from the
+repository folder. To change the name later, move the existing `cert.pem` and
+`key.pem` out of the TLS directory first: the installer never replaces an
+existing pair, and it keeps existing accounts when run again.
 
 For an existing company certificate, place `cert.pem` and matching `key.pem` in
 the configured TLS directory and omit `--self-signed`. The key is root-owned,
@@ -84,6 +93,15 @@ the exact share UNC in `//server/share` form and the actual AD NetBIOS owner dom
 The installer prompts privately for the SMB reader password when its credential
 file does not exist. That file is root:rdmon 640 inside a 750 directory, so only
 root and the web service can read it; the share account itself is read-only.
+Enter the username without the domain; the installer adds `owner_domain`.
+
+Test the share by hand before enabling it, so a wrong password or domain shows
+up before the mount unit is created:
+
+```bash
+smbclient '//dc.corp.example.com/RustDeskVault$' -U 'EXAMPLE\svc-rdconsole' \
+  -m SMB3 --client-protection=encrypt -c 'ls'
+```
 
 The installer creates a CIFS mount unit using `ro,vers=3.1.1,seal,sec=ntlmssp`,
 the dynamically discovered service uid/gid, `file_mode=0400` and `dir_mode=0500`.

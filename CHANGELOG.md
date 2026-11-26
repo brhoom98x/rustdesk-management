@@ -13,6 +13,17 @@
   The machine's RustDesk ID is kept, MSI-installed machines are never
   reinstalled, and `-KeepForeignInstall` opts out.
 
+### Documentation
+
+- New [step-by-step guide](docs/step-by-step.md) from a blank Linux server to
+  managed Windows PCs, including installing the RustDesk OSS server.
+- The Windows guide now covers loopback processing (required when user accounts
+  are in a different OU from the computers), waiting for the network at startup,
+  Restart versus Fast Startup shutdown, and the client ports.
+- The console guide notes the official packages' database path, IP-address
+  certificates and vault shares, replacing a certificate, and testing the vault
+  share with `smbclient` first.
+
 ### Upgrade notes
 
 Stage the updated `Deploy-RustDesk.ps1` in NETLOGON. Affected machines are fixed
